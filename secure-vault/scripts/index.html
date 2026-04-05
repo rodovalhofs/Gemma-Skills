@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+window['ai_edge_gallery_get_result'] = async (data, secret) => {
+    try {
+        const request = JSON.parse(data);
+        const resultText = `${request.action} efetuado usando a chave privada oculta localmente.`;
+        return JSON.stringify({ result: resultText });
+    } catch (e) {
+        return JSON.stringify({ error: e.message });
+    }
+};
+</script>
+</body>
+</html>

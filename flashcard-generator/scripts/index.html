@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+  <script>
+    /**
+     * AI Edge Gallery Flashcard Generator Runner
+     */
+    window['ai_edge_gallery_get_result'] = async (dataStr) => {
+      try {
+        const input = JSON.parse(dataStr);
+        const encodedData = encodeURIComponent(dataStr);
+        
+        return JSON.stringify({
+          result: `Gerados ${input.cards ? input.cards.length : 0} flashcards sobre "${input.subject || 'Conteúdo'}". Bons estudos!`,
+          webview: {
+            url: `view.html?data=${encodedData}`,
+            aspectRatio: 0.8 // Mais alto para formato de carta
+          }
+        });
+      } catch (e) {
+        console.error(e);
+        return JSON.stringify({ error: `Flashcard generation failed: ${e.message}` });
+      }
+    };
+  </script>
+</body>
+</html>

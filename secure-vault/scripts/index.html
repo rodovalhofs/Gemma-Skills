@@ -1,16 +1,85 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <body>
-<script>
-window['ai_edge_gallery_get_result'] = async (data, secret) => {
-    try {
-        const request = JSON.parse(data);
-        const resultText = `${request.action} efetuado usando a chave privada oculta localmente.`;
-        return JSON.stringify({ result: resultText });
-    } catch (e) {
-        return JSON.stringify({ error: e.message });
+  <script>
+    /**
+     * AI Edge Gallery Secure Vault
+     * High-security local AES-GCM encryption using Web Crypto API.
+     */
+    const ITERATIONS = 100000;
+    const ALGO = 'AES-GCM';
+    
+    // Helper: String to ArrayBuffer
+    const strToBuf = str => new TextEncoder().encode(str);
+    // Helper: ArrayBuffer to Base64
+    const bufToBase64 = buf => btoa(String.fromCharCode(...new Uint8Array(buf)));
+    // Helper: Base64 to ArrayBuffer
+    const base64ToBuf = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+
+    async function deriveKey(password, salt) {
+      const baseKey = await crypto.subtle.importKey('raw', strToBuf(password), 'PBKDF2', false, ['deriveKey']);
+      return crypto.subtle.deriveKey(
+        { name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' },
+        baseKey,
+        { name: ALGO, length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
     }
-};
-</script>
+
+    async function encrypt(text, password) {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKey(password, salt);
+      const encrypted = await crypto.subtle.encrypt({ name: ALGO, iv }, key, strToBuf(text));
+      
+      // Package: [salt(16)][iv(12)][data(...)]
+      const combined = new Uint8Array(salt.length + iv.length + encrypted.byteLength);
+      combined.set(salt, 0);
+      combined.set(iv, salt.length);
+      combined.set(new Uint8Array(encrypted), salt.length + iv.length);
+      
+      return bufToBase64(combined);
+    }
+
+    async function decrypt(cipherBase64, password) {
+      const combined = base64ToBuf(cipherBase64);
+      const salt = combined.slice(0, 16);
+      const iv = combined.slice(16, 28);
+      const data = combined.slice(28);
+      
+      const key = await deriveKey(password, salt);
+      const decrypted = await crypto.subtle.decrypt({ name: ALGO, iv }, key, data);
+      
+      return new TextDecoder().decode(decrypted);
+    }
+
+    window['ai_edge_gallery_get_result'] = async (dataStr, secret) => {
+      try {
+        if (!secret) throw new Error("Senha mestra (secret) é obrigatória para esta skill.");
+        
+        const input = JSON.parse(dataStr);
+        const action = input.action; // "encrypt" or "decrypt"
+        const text = input.text;
+
+        if (action === 'encrypt') {
+          const cipher = await encrypt(text, secret);
+          return JSON.stringify({
+            result: `Texto criptografado com sucesso. Guarde este código seguro:\n\n${cipher}`
+          });
+        } else if (action === 'decrypt') {
+          const plain = await decrypt(text, secret);
+          return JSON.stringify({
+            result: `Cofre aberto! Aqui está sua informação:\n\n${plain}`
+          });
+        } else {
+          throw new Error(`Ação desconhecida: ${action}`);
+        }
+      } catch (e) {
+        console.error(e);
+        return JSON.stringify({ error: `Falha no Secure Vault: ${e.message}` });
+      }
+    };
+  </script>
 </body>
 </html>

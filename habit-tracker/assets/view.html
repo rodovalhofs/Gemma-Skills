@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Habit Tracker Board</title>
+  <style>
+    :root {
+      --primary: #00FF85;
+      --bg: #121212;
+      --card-bg: #1E1E1E;
+      --text: #E0E0E0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .habit-info h3 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    .habit-info p {
+      margin: 4px 0 0;
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .streak {
+      background: rgba(0, 255, 133, 0.1);
+      color: var(--primary);
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: bold;
+      font-size: 0.9rem;
+    }
+
+    .done-today {
+      border-left: 4px solid var(--primary);
+    }
+
+    h2 {
+      margin-top: 0;
+      font-size: 1.2rem;
+      color: var(--primary);
+    }
+
+    .empty-msg {
+      text-align: center;
+      padding: 40px;
+      color: #666;
+    }
+  </style>
+</head>
+<body>
+  <h2>Seus Hábitos</h2>
+  <div id="habit-board"></div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const rawData = urlParams.get('data');
+    
+    if (rawData) {
+      try {
+        const db = JSON.parse(decodeURIComponent(rawData));
+        render(db.habits);
+      } catch (e) {
+        document.body.innerHTML = "Erro ao carregar o quadro.";
+      }
+    }
+
+    function render(habits) {
+      const container = document.getElementById('habit-board');
+      const habitNames = Object.keys(habits);
+      
+      if (habitNames.length === 0) {
+        container.innerHTML = '<div class="empty-msg">Nenhum hábito rastreado ainda. Diga à Gemma para adicionar um!</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      const today = new Date().toISOString().split('T')[0];
+
+      habitNames.forEach(name => {
+        const habit = habits[name];
+        const isDoneToday = habit.history.includes(today);
+        const streak = calculateStreak(habit.history);
+
+        const card = document.createElement('div');
+        card.className = `card ${isDoneToday ? 'done-today' : ''}`;
+        card.innerHTML = `
+          <div class="habit-info">
+            <h3>${name}</h3>
+            <p>${isDoneToday ? '✅ Concluído hoje' : '⏳ Pendente hoje'}</p>
+          </div>
+          <div class="streak">${streak}🔥</div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function calculateStreak(history) {
+      if (!history || history.length === 0) return 0;
+      
+      const sorted = history.slice().sort((a,b) => new Date(b) - new Date(a));
+      let streak = 0;
+      let checkDate = new Date();
+      
+      // If not done today, start checking from yesterday
+      const today = checkDate.toISOString().split('T')[0];
+      if (!sorted.includes(today)) {
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+
+      for (let i = 0; i < sorted.length; i++) {
+        const dateStr = checkDate.toISOString().split('T')[0];
+        if (sorted.includes(dateStr)) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+      return streak;
+    }
+  </script>
+</body>
+</html>

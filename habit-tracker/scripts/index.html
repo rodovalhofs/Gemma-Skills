@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+  <script>
+    /**
+     * AI Edge Gallery Habit Tracker Runner
+     * Persistence logic via localStorage (WebView scope).
+     */
+    const STORAGE_KEY = 'habit_tracker_db';
+
+    function getDB() {
+      const db = localStorage.getItem(STORAGE_KEY);
+      return db ? JSON.parse(db) : { habits: {} };
+    }
+
+    function saveDB(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    window['ai_edge_gallery_get_result'] = async (dataStr) => {
+      try {
+        const input = JSON.parse(dataStr);
+        const db = getDB();
+        const action = input.action;
+        const name = input.habit_name;
+        const today = new Date().toISOString().split('T')[0];
+
+        let resultMsg = "";
+        
+        if (action === 'log') {
+          if (!db.habits[name]) db.habits[name] = { created: today, history: [] };
+          if (!db.habits[name].history.includes(today)) {
+            db.habits[name].history.push(today);
+            saveDB(db);
+            resultMsg = `Hábito "${name}" marcado como concluído hoje!`;
+          } else {
+            resultMsg = `Você já concluiu "${name}" hoje. Mantenha o foco!`;
+          }
+        } else if (action === 'add') {
+          if (!db.habits[name]) {
+            db.habits[name] = { created: today, history: [] };
+            saveDB(db);
+            resultMsg = `Hábito "${name}" adicionado à sua lista.`;
+          } else {
+            resultMsg = `O hábito "${name}" já existe na sua lista.`;
+          }
+        } else if (action === 'view') {
+          resultMsg = "Aqui está o seu quadro de hábitos.";
+        }
+
+        const encodedData = encodeURIComponent(JSON.stringify(db));
+        
+        return JSON.stringify({
+          result: resultMsg,
+          webview: {
+            url: `view.html?data=${encodedData}`,
+            aspectRatio: 1.0
+          }
+        });
+      } catch (e) {
+        console.error(e);
+        return JSON.stringify({ error: `Habit tracker failed: ${e.message}` });
+      }
+    };
+  </script>
+</body>
+</html>

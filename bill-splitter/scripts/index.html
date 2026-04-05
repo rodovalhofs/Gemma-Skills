@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script>
+window['ai_edge_gallery_get_result'] = async (data) => {
+    try {
+        const jsonData = JSON.parse(data);
+        const url = `webview.html?data=${encodeURIComponent(data)}`;
+        return JSON.stringify({
+            result: "Aqui está o detalhamento da conta.",
+            webview: { url: url, aspectRatio: 1.0 }
+        });
+    } catch (e) {
+        return JSON.stringify({ error: e.message });
+    }
+};
+</script>
+</body>
+</html>

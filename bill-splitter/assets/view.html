@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bill Splitter View</title>
+  <style>
+    :root {
+      --primary: #FF7B00;
+      --bg: #121212;
+      --card-bg: rgba(255, 255, 255, 0.08);
+      --text: #E0E0E0;
+    }
+
+    body {
+      color: var(--text);
+      background-color: var(--bg);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(8px);
+    }
+
+    h2 {
+      margin-top: 0;
+      color: var(--primary);
+      font-size: 1.25rem;
+    }
+
+    .items-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      padding-bottom: 8px;
+    }
+
+    .person-tag {
+      font-size: 0.8rem;
+      background: var(--primary);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-right: 8px;
+    }
+
+    .totals {
+      font-weight: bold;
+      border-top: 2px solid var(--primary);
+      padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--primary);
+    }
+
+    .summary-text {
+      font-style: italic;
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    button {
+      background: var(--primary);
+      border: none;
+      color: white;
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+    
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #333;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>Resumo da Conta</h2>
+    <div id="items-container" class="items-list"></div>
+    
+    <div class="totals" id="totals-container">
+      <div class="item"><span>Subtotal:</span> <span id="sub-total">R$ 0,00</span></div>
+      <div class="item"><span>Gorjeta (<span id="tip-val"></span>%):</span> <span id="tip-money">R$ 0,00</span></div>
+      <div class="item" style="font-size: 1.2rem;"><span>Total:</span> <span id="final-total">R$ 0,00</span></div>
+    </div>
+  </div>
+
+  <div class="card controls">
+    <label>Ajustar Gorjeta</label>
+    <input type="range" id="tip-slider" min="0" max="25" step="1" value="10">
+    <div id="summary-container"></div>
+    <button id="copy-btn">Copiar Resumo</button>
+  </div>
+  
+  <div id="toast">Copiado para o clipboard!</div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const rawData = urlParams.get('data');
+    
+    let state = {
+      items: [],
+      subtotal: 0,
+      tip_percent: 10,
+      participants: []
+    };
+
+    if (rawData) {
+      try {
+        const input = JSON.parse(decodeURIComponent(rawData));
+        state.items = input.items || [];
+        state.subtotal = input.subtotal || 0;
+        state.tip_percent = input.tip_percent || 10;
+        
+        // Find all participants
+        const users = new Set();
+        state.items.forEach(it => { if(it.person) users.add(it.person) });
+        state.participants = Array.from(users);
+        
+        render();
+      } catch (e) {
+        document.body.innerHTML = "Erro ao carregar dados.";
+      }
+    }
+
+    function render() {
+      const itemsContainer = document.getElementById('items-container');
+      const tipVal = document.getElementById('tip-val');
+      const subTotal = document.getElementById('sub-total');
+      const tipMoney = document.getElementById('tip-money');
+      const finalTotalElem = document.getElementById('final-total');
+      const slider = document.getElementById('tip-slider');
+      
+      slider.value = state.tip_percent;
+      tipVal.innerText = state.tip_percent;
+      
+      itemsContainer.innerHTML = '';
+      state.items.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'item';
+        div.innerHTML = `
+          <span>
+            ${item.person ? `<span class="person-tag">${item.person}</span>` : ''}
+            ${item.name}
+          </span>
+          <span>R$ ${item.price.toFixed(2).replace('.', ',')}</span>
+        `;
+        itemsContainer.appendChild(div);
+      });
+
+      const st = state.subtotal;
+      const tp = (st * state.tip_percent) / 100;
+      const ft = st + tp;
+
+      subTotal.innerText = `R$ ${st.toFixed(2).replace('.', ',')}`;
+      tipMoney.innerText = `R$ ${tp.toFixed(2).replace('.', ',')}`;
+      finalTotalElem.innerText = `R$ ${ft.toFixed(2).replace('.', ',')}`;
+
+      // Calculate Split
+      const summaryContainer = document.getElementById('summary-container');
+      const splitResults = calculateSplit(tp);
+      
+      summaryContainer.innerHTML = '<h3>Quem paga quanto?</h3>';
+      splitResults.forEach(res => {
+        const p = document.createElement('div');
+        p.style.marginBottom = '8px';
+        p.innerHTML = `<strong>${res.person}</strong>: R$ ${res.total.toFixed(2).replace('.', ',')}`;
+        summaryContainer.appendChild(p);
+      });
+    }
+
+    function calculateSplit(totalTip) {
+      if (state.participants.length === 0) return [{ person: 'Total', total: state.subtotal + totalTip }];
+      
+      // Items with owners
+      const userTotals = {};
+      state.participants.forEach(p => userTotals[p] = 0);
+      
+      let sharedTotal = 0;
+      state.items.forEach(item => {
+        if (item.person) {
+          userTotals[item.person] += item.price;
+        } else {
+          sharedTotal += item.price;
+        }
+      });
+      
+      // Share split among participants
+      const sharedPerPerson = sharedTotal / state.participants.length;
+      const tipPerPerson = totalTip / state.participants.length;
+      
+      return state.participants.map(p => ({
+        person: p,
+        total: userTotals[p] + sharedPerPerson + tipPerPerson
+      }));
+    }
+
+    document.getElementById('tip-slider').addEventListener('input', (e) => {
+      state.tip_percent = parseInt(e.target.value);
+      render();
+    });
+
+    document.getElementById('copy-btn').addEventListener('click', () => {
+      const st = state.subtotal;
+      const tp = (st * state.tip_percent) / 100;
+      const ft = st + tp;
+      const results = calculateSplit(tp);
+      
+      let text = `Resumo da Conta Splitter:\nTotal: R$ ${ft.toFixed(2)}\n\n`;
+      results.forEach(res => {
+        text += `${res.person}: R$ ${res.total.toFixed(2)}\n`;
+      });
+      
+      navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('toast');
+        toast.style.opacity = 1;
+        setTimeout(() => toast.style.opacity = 0, 2000);
+      });
+    });
+  </script>
+</body>
+</html>

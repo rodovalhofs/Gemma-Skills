@@ -1,19 +1,29 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <body>
-<script>
-window['ai_edge_gallery_get_result'] = async (data) => {
-    try {
-        const jsonData = JSON.parse(data);
-        const url = `webview.html?data=${encodeURIComponent(data)}`;
+  <script>
+    /**
+     * AI Edge Gallery Bill Splitter Runner
+     * Receives raw JSON from Gemma 4, prepares it and serves the webview.
+     */
+    window['ai_edge_gallery_get_result'] = async (dataStr) => {
+      try {
+        const input = JSON.parse(dataStr);
+        const encodedData = encodeURIComponent(dataStr);
+        
+        // Final response structure per documentation
         return JSON.stringify({
-            result: "Aqui está o detalhamento da conta.",
-            webview: { url: url, aspectRatio: 1.0 }
+          result: "Aqui está o detalhamento da conta. Você pode ajustar a porcentagem da gorjeta na visualização interativa.",
+          webview: {
+            url: `view.html?data=${encodedData}`,
+            aspectRatio: 1.0
+          }
         });
-    } catch (e) {
-        return JSON.stringify({ error: e.message });
-    }
-};
-</script>
+      } catch (e) {
+        console.error(e);
+        return JSON.stringify({ error: `Bill Splitter processing failed: ${e.message}` });
+      }
+    };
+  </script>
 </body>
 </html>
